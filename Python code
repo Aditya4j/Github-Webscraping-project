@@ -1,0 +1,109 @@
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+
+
+def get_topic_titles(soup):
+    inf = soup.find("div", class_="col-lg-9 position-relative pr-lg-5 mb-6 mr-lg-5")
+    main = inf.find_all("div", class_="py-4 border-bottom d-flex flex-justify-between")
+    title = []
+    for i in main:
+        p = i.find("p", class_="f3 lh-condensed mb-0 mt-1 Link--primary").text
+        title.append(p)
+    return title
+
+
+def get_topic_Desc(soup):
+    inf = soup.find("div", class_="col-lg-9 position-relative pr-lg-5 mb-6 mr-lg-5")
+    main = inf.find_all("div", class_="py-4 border-bottom d-flex flex-justify-between")
+    description = []
+    for i in main:
+        d = i.find("p", class_="f5 color-fg-muted mb-0 mt-1").text.strip()
+        description.append(d)
+    return description
+
+
+def get_topic_Link(soup):
+    inf = soup.find("div", class_="col-lg-9 position-relative pr-lg-5 mb-6 mr-lg-5")
+    main = inf.find_all("div", class_="py-4 border-bottom d-flex flex-justify-between")
+    Link = []
+    for i in main:
+        a = i.find("a")["href"]
+        Link.append("https://github.com" + a)
+    return Link
+
+
+def scrape_topic():
+    topic_url = "https://github.com/topics"
+    r = requests.get(topic_url)
+    soup = BeautifulSoup(r.text, "html.parser")
+    topic_dict = {
+        "title": get_topic_titles(soup),
+        "Description": get_topic_Desc(soup),
+        "Url": get_topic_Link(soup),
+    }
+    return pd.DataFrame(topic_dict)
+
+
+# print(scrape_topic())
+
+
+def get_topic_repos(url):
+    rq = requests.get(url)
+    in_link = BeautifulSoup(rq.text, "html.parser")
+    div = in_link.find_all("h3", class_="f3 color-fg-muted text-normal lh-condensed")
+    name = []
+    repo = []
+    for i in div:
+        new = i.find("a")
+        new1 = i.find("a", class_="Link text-bold wb-break-word")
+        name.append(new.text.strip())
+        repo.append(new1.text.strip())
+    urls = []
+    for n, r in zip(name, repo):
+        ur = f"http://github.com/{n}/{r}"
+        urls.append(ur)
+
+    stars = []
+    star = in_link.find_all("span", id="repo-stars-counter-star")
+    for i in star:
+        s = i.text.strip()
+        if s[-1] == "k":
+            stars.append(int(float(s[:-1])) * 1000)
+        elif s[-1]:
+            stars.append(int(s))
+    df = pd.DataFrame(
+        {"Username": name, "Repo_name": repo, "Stars": stars, "Repo_url": urls}
+    )
+    return df
+
+
+# get_topic_repos()
+def File_name(title):
+    return "".join([c if c.isalnum() else "_" for c in title])
+
+
+def scrape_topic_repos():
+    topic_df = scrape_topic()
+    for index, row in topic_df.iterrows():
+        print(f"Scraping top repositories for {row['title']} ")
+        repos_df = get_topic_repos(row["Url"])
+        filename = File_name(row["title"]) + ".csv"
+        repos_df.to_csv(filename, index=None)
+        print(f"Saved as {filename}")
+
+
+scrape_topic_repos()
+
+
+#def save_topic_data_to_csv():
+#    combined_df = pd.DataFrame()
+#    for i in Link:
+#        df = get_topic_repos(i)
+#        combined_df = pd.concat([combined_df, df])
+#
+#    combined_df.to_csv("GithubTopics.csv", index=None)
+#    print("Data saved to GithubTopics.csv")
+#
+#
+## save_topic_data_to_csv()
